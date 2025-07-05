@@ -1,0 +1,93 @@
+CREATE DATABASE pizzahut;
+use pizzahut;
+create table order_details(
+order_id int not null ,
+order_details_id int not null ,
+pizza_id text not null,
+quantity int not null ,
+primary key(order_details_id)
+ );
+-- TOTAL REVENUE
+SELECT ROUND(SUM(od.quantity * p.price), 2) AS total_revenue
+FROM order_details od
+JOIN pizzas p ON od.pizza_id = p.pizza_id;
+
+DESCRIBE orders;
+
+
+-- DAILY SALES TREND
+SELECT o.order_date, 
+       SUM(od.quantity * p.price) AS revenue  
+FROM order_details od  
+JOIN pizzas p ON od.pizza_id = p.pizza_id  
+JOIN orders o ON o.order_id = od.order_id  
+GROUP BY o.order_date  
+ORDER BY o.order_date;
+
+-- TOP 5 SELLING PIZZAS
+SELECT pt.name, SUM(od.quantity) AS total_sold
+FROM order_details od
+JOIN pizzas p ON od.pizza_id = p.pizza_id
+JOIN pizza_types pt ON p.pizza_type_id = pt.pizza_type_id
+GROUP BY pt.name
+ORDER BY total_sold DESC
+LIMIT 5;
+
+-- REVENUE BY PIZZA CATEGORY
+SELECT pt.category, ROUND(SUM(od.quantity * p.price), 2) AS revenue
+FROM order_details od
+JOIN pizzas p ON od.pizza_id = p.pizza_id
+JOIN pizza_types pt ON p.pizza_type_id = pt.pizza_type_id
+GROUP BY pt.category;
+
+-- REVENUE BY PIZZA SIZE
+SELECT p.size, ROUND(SUM(od.quantity * p.price), 2) AS revenue
+FROM order_details od
+JOIN pizzas p ON od.pizza_id = p.pizza_id
+GROUP BY p.size
+ORDER BY revenue DESC;
+
+-- PERCENTAGE CONTRIBUTION OF EACH PIZZA TYPE TO TOTAL REVENUE
+SELECT 
+    pt.name AS pizza_type,
+    ROUND(SUM(od.quantity * p.price), 2) AS revenue,
+    ROUND(
+        SUM(od.quantity * p.price) / 
+        (SELECT SUM(od2.quantity * p2.price)
+         FROM order_details od2
+         JOIN pizzas p2 ON od2.pizza_id = p2.pizza_id) * 100, 2
+    ) AS revenue_percentage
+FROM order_details od
+JOIN pizzas p ON od.pizza_id = p.pizza_id
+JOIN pizza_types pt ON p.pizza_type_id = pt.pizza_type_id
+GROUP BY pt.name
+ORDER BY revenue_percentage DESC;
+
+-- CUMULATIVE REVENUE OVER TIME
+SELECT 
+    o.order_date,
+    ROUND(SUM(od.quantity * p.price), 2) AS daily_revenue,
+    ROUND(SUM(SUM(od.quantity * p.price)) 
+          OVER (ORDER BY o.order_date), 2) AS cumulative_revenue
+FROM order_details od
+JOIN pizzas p ON od.pizza_id = p.pizza_id
+JOIN orders o ON od.order_id = o.order_id
+GROUP BY o.order_date
+ORDER BY o.order_date;
+
+-- TOP 3 MOST ORDERED PIZZA TYPES IN EACH CATEGORY
+SELECT *
+FROM (
+    SELECT 
+        pt.category,
+        pt.name AS pizza_type,
+        ROUND(SUM(od.quantity * p.price), 2) AS revenue,
+        RANK() OVER (PARTITION BY pt.category ORDER BY SUM(od.quantity * p.price) DESC) AS rank_in_category
+    FROM order_details od
+    JOIN pizzas p ON od.pizza_id = p.pizza_id
+    JOIN pizza_types pt ON p.pizza_type_id = pt.pizza_type_id
+    GROUP BY pt.category, pt.name
+) ranked
+WHERE rank_in_category <= 3
+ORDER BY category, rank_in_category;
+
